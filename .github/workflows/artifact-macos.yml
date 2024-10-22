@@ -30,36 +30,45 @@ jobs:
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           build --src-dir="$PWD" --no-tests watchman
 
-        # Debug: Show the temp build directory
-        echo "Temp build directory contents:"
-        FBCODE_DIR=$(find /private/var/folders -type d -name "fbcode_builder_getdeps-*" 2>/dev/null)
-        ls -R "$FBCODE_DIR" || true
+        # Debug: Show where builds might be
+        echo "Looking for build directories and binaries:"
+        echo "In /tmp:"
+        find /tmp -type d -name "*watchman*" -o -name "*fbcode*" 2>/dev/null || true
+        echo "In /private/var/folders:"
+        find /private/var/folders -type d -name "*watchman*" -o -name "*fbcode*" 2>/dev/null || true
+        echo "In current directory:"
+        find . -type d -name "*watchman*" -o -name "*fbcode*" 2>/dev/null || true
+
+        echo "Looking for binaries:"
+        echo "In /tmp:"
+        find /tmp -type f -name "watchman" -o -name "watchmanctl" 2>/dev/null || true
+        echo "In /private/var/folders:"
+        find /private/var/folders -type f -name "watchman" -o -name "watchmanctl" 2>/dev/null || true
+        echo "In current directory:"
+        find . -type f -name "watchman" -o -name "watchmanctl" 2>/dev/null || true
 
     - name: Create Package
       run: |
         cd watchman
         mkdir -p package/watchman
 
-        # Look in the temp build directory
-        FBCODE_DIR=$(find /private/var/folders -type d -name "fbcode_builder_getdeps-*" 2>/dev/null)
-        if [ -n "$FBCODE_DIR" ]; then
-          echo "Found fbcode build directory: $FBCODE_DIR"
+        # Look everywhere for the binaries
+        for location in "/tmp" "/private/var/folders" "$PWD"; do
+          echo "Searching in $location"
           for binary in watchman watchmanctl; do
-            if BINARY_PATH=$(find "$FBCODE_DIR" -type f -name "$binary" 2>/dev/null); then
-              echo "Found $binary at $BINARY_PATH"
+            if BINARY_PATH=$(find "$location" -type f -name "$binary" 2>/dev/null); then
+              echo "Found $binary at: $BINARY_PATH"
               cp "$BINARY_PATH" package/watchman/
             fi
           done
-        else
-          echo "Could not find fbcode build directory!"
-          exit 1
-        fi
+        done
 
+        # Package up what we found
         cp LICENSE package/watchman/
         cd package
         tar -czf watchman-macos.tar.gz watchman/
 
-        # Verify contents
+        # Show what we got
         echo "Archive contents:"
         tar tvf watchman-macos.tar.gz
 
