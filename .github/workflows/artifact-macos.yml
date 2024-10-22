@@ -19,18 +19,14 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
 
-    - name: Clone and Build edencommon
+    - name: Debug edencommon location
       run: |
         git clone --depth 1 --single-branch --branch main --no-tags \
           https://github.com/facebook/sapling.git
-        cd sapling/common
-        cmake -B build \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_INSTALL_PREFIX=/usr/local
-        cmake --build build --config Release -j$(sysctl -n hw.ncpu)
-        sudo cmake --install build
-        cd ../..
-        rm -rf sapling
+        echo "Contents of sapling/common:"
+        ls -la sapling/common
+        echo "\nAll CMakeLists.txt in sapling repo:"
+        find sapling -name CMakeLists.txt | grep -i common
 
     - name: Clone and Build Watchman
       run: |
