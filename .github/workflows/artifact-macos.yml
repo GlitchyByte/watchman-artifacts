@@ -9,7 +9,6 @@ jobs:
     env:
       DEPENDENCY_DIR: /usr/local/var/getdeps
       GETDEPS_BUILD_DIR: /usr/local/var/getdeps/build
-      # These are straight from watchman's own workflow
       CCACHE_DIR: /Users/runner/work/_temp/ccache
       CCACHE_MAXSIZE: 1G
       ACTIONS_RUNTIME_TOKEN: ${{ github.token }}
@@ -22,7 +21,7 @@ jobs:
         repository: facebook/watchman
         path: watchman
         fetch-depth: 1
-        submodules: false
+        submodules: recursive
 
     - name: Install ccache
       run: |
@@ -52,9 +51,9 @@ jobs:
         export CXX="ccache clang++"
         export GETDEPS_PACKAGE_DIR="$GITHUB_WORKSPACE/watchman/build/fbcode_builder/manifests"
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
-          install-system-deps --recursive
+          install-system-deps --recursive watchman
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
-          build --no-tests .
+          build --src-dir="$PWD" --no-tests watchman
 
     - name: Create Package
       run: |
