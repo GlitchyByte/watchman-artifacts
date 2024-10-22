@@ -8,7 +8,6 @@ jobs:
     runs-on: macos-latest
     env:
       DEPENDENCY_DIR: /usr/local/var/getdeps
-      GETDEPS_BUILD_DIR: /usr/local/var/getdeps/build
       ACTIONS_RUNTIME_TOKEN: ${{ github.token }}
       ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:-"https://actions-cache.github.com/api/"}
 
@@ -39,15 +38,31 @@ jobs:
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           build --src-dir="$PWD" --no-tests watchman
 
+        # Debug: Show us where the files are
+        echo "Finding watchman binaries..."
+        find /usr/local/var/getdeps -type f -name watchman
+        find /tmp -type f -name watchman
+        find $GITHUB_WORKSPACE -type f -name watchman
+
     - name: Create Package
       run: |
         cd watchman
         mkdir -p package/watchman
-        find ${GETDEPS_BUILD_DIR} -type f -name watchman -exec cp {} package/watchman/ \;
-        find ${GETDEPS_BUILD_DIR} -type f -name watchmanctl -exec cp {} package/watchman/ \;
+        for path in $(find /usr/local/var/getdeps -type f -name watchman -o -name watchmanctl 2>/dev/null) \
+                   $(find /tmp -type f -name watchman -o -name watchmanctl 2>/dev/null) \
+                   $(find $GITHUB_WORKSPACE -type f -name watchman -o -name watchmanctl 2>/dev/null); do
+          if [[ -x "$path" ]]; then
+            echo "Found binary: $path"
+            cp "$path" package/watchman/
+          fi
+        done
         cp LICENSE package/watchman/
         cd package
         tar -czf watchman-macos.tar.gz watchman/
+
+        # Debug: Show what we packaged
+        echo "Package contents:"
+        tar tvf watchman-macos.tar.gz
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
