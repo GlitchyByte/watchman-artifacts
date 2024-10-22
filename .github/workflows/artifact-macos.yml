@@ -19,26 +19,21 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
 
-    - name: Debug edencommon location
-      run: |
-        git clone --depth 1 --single-branch --branch main --no-tags \
-          https://github.com/facebook/sapling.git
-        echo "Contents of sapling/common:"
-        ls -la sapling/common
-        echo "\nAll CMakeLists.txt in sapling repo:"
-        find sapling -name CMakeLists.txt | grep -i common
-
-    - name: Clone and Build Watchman
+    - name: Clone and Setup Watchman
       run: |
         git clone --depth 1 --single-branch --branch main --no-tags \
           https://github.com/facebook/watchman.git
+        cd watchman
+        git submodule update --init --recursive --depth 1
+
+    - name: Build
+      run: |
         cd watchman
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DWATCHMAN_BUILD_TESTS=ON \
           -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3) \
-          -DGTEST_ROOT=$(brew --prefix googletest) \
-          -Dedencommon_DIR=/usr/local/lib/cmake/edencommon
+          -DGTEST_ROOT=$(brew --prefix googletest)
         cmake --build build --config Release -j$(sysctl -n hw.ncpu)
 
     - name: Create Package
