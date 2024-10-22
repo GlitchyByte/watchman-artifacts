@@ -11,6 +11,10 @@ jobs:
       GETDEPS_BUILD_DIR: /usr/local/var/getdeps/build
       CCACHE_DIR: /Users/runner/work/_temp/ccache
       CCACHE_MAXSIZE: 1G
+      # Disable ARM64-specific optimizations in liboqs
+      OQS_ENABLE_ARM_NEON: "OFF"
+      OQS_ENABLE_ARM: "OFF"
+      OQS_DIST_BUILD: "ON"
       ACTIONS_RUNTIME_TOKEN: ${{ github.token }}
       ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:-"https://actions-cache.github.com/api/"}
 
