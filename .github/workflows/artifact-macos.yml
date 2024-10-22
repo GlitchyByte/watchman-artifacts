@@ -19,33 +19,31 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
 
-    - name: Clone and Build edencommon
-      run: |
-        git clone --depth 1 --single-branch --branch main --no-tags \
-          https://github.com/facebook/eden.git
-        cd eden/eden/common
-        cmake -B build \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_INSTALL_PREFIX=/usr/local
-        cmake --build build --config Release -j$(sysctl -n hw.ncpu)
-        sudo cmake --install build
-        cd ../../..
-        rm -rf eden
-
-    - name: Clone and Build Watchman
+    - name: Debug Watchman Dependencies
       run: |
         git clone --depth 1 --single-branch --branch main --no-tags \
           https://github.com/facebook/watchman.git
+        cd watchman
+        echo "Examining CMakeLists.txt for edencommon configuration:"
+        grep -A 5 -B 5 edencommon CMakeLists.txt
+        echo "\nChecking for any edencommon files:"
+        find . -type f -exec grep -l "edencommon" {} \;
+        echo "\nChecking CMake files:"
+        find . -name "*.cmake" -o -name "CMakeLists.txt" | xargs cat
+
+    - name: Build
+      if: false  # Temporarily disable build step
+      run: |
         cd watchman
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DWATCHMAN_BUILD_TESTS=ON \
           -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3) \
-          -DGTEST_ROOT=$(brew --prefix googletest) \
-          -Dedencommon_DIR=/usr/local/lib/cmake/edencommon
+          -DGTEST_ROOT=$(brew --prefix googletest)
         cmake --build build --config Release -j$(sysctl -n hw.ncpu)
 
     - name: Create Package
+      if: false  # Temporarily disable package step
       run: |
         cd watchman
         mkdir -p package/watchman
@@ -56,6 +54,7 @@ jobs:
         tar -czf watchman-macos.tar.gz watchman/
 
     - name: Upload Artifact
+      if: false  # Temporarily disable upload step
       uses: actions/upload-artifact@v4
       with:
         name: watchman-macos
