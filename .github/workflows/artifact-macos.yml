@@ -30,29 +30,37 @@ jobs:
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           build --src-dir="$PWD" --no-tests watchman
 
-        # Debug: Show us the directory structure
-        echo "Directory structure:"
-        ls -R .
-        echo "Finding watchman binaries..."
-        find . -type f -name watchman
+        # Debug: Show the temp build directory
+        echo "Temp build directory contents:"
+        FBCODE_DIR=$(find /private/var/folders -type d -name "fbcode_builder_getdeps-*" 2>/dev/null)
+        ls -R "$FBCODE_DIR" || true
 
     - name: Create Package
-      working-directory: watchman
       run: |
+        cd watchman
         mkdir -p package/watchman
-        # Look for binaries in build directory and _build directory
-        for path in $(find . -type f -name watchman -o -name watchmanctl 2>/dev/null); do
-          if [[ -x "$path" ]]; then
-            echo "Found binary: $path"
-            cp "$path" package/watchman/
-          fi
-        done
+
+        # Look in the temp build directory
+        FBCODE_DIR=$(find /private/var/folders -type d -name "fbcode_builder_getdeps-*" 2>/dev/null)
+        if [ -n "$FBCODE_DIR" ]; then
+          echo "Found fbcode build directory: $FBCODE_DIR"
+          for binary in watchman watchmanctl; do
+            if BINARY_PATH=$(find "$FBCODE_DIR" -type f -name "$binary" 2>/dev/null); then
+              echo "Found $binary at $BINARY_PATH"
+              cp "$BINARY_PATH" package/watchman/
+            fi
+          done
+        else
+          echo "Could not find fbcode build directory!"
+          exit 1
+        fi
+
         cp LICENSE package/watchman/
         cd package
         tar -czf watchman-macos.tar.gz watchman/
 
-        # Debug: Show what we packaged
-        echo "Package contents:"
+        # Verify contents
+        echo "Archive contents:"
         tar tvf watchman-macos.tar.gz
 
     - name: Upload Artifact
