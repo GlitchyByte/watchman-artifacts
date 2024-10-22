@@ -21,16 +21,13 @@ jobs:
 
     - name: Clone and Build edencommon
       run: |
+        # Debug directory structure
         git clone --depth 1 --single-branch --branch main --no-tags \
           https://github.com/facebook/sapling.git
-        cd sapling/eden/common
-        cmake -B build \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_INSTALL_PREFIX=/usr/local
-        cmake --build build --config Release -j$(sysctl -n hw.ncpu)
-        sudo cmake --install build
-        cd ../../..
-        rm -rf sapling
+        echo "Listing sapling directory contents:"
+        ls -la sapling
+        find sapling -name "common" -type d
+        find sapling -name "CMakeLists.txt" -type f
 
     - name: Clone and Build Watchman
       run: |
