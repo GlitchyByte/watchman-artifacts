@@ -1,0 +1,63 @@
+name: Build Watchman macOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install Dependencies
+      run: |
+        brew install fmt boost googletest glog
+        python -m pip install --upgrade pip
+        pip install cython
+
+    - name: Clone and Build edencommon
+      run: |
+        git clone --depth 1 --single-branch --branch main --no-tags \
+          https://github.com/facebook/sapling.git
+        cd sapling/eden/common
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local
+        cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+        sudo cmake --install build
+        cd ../../..
+        rm -rf sapling
+
+    - name: Clone and Build Watchman
+      run: |
+        git clone --depth 1 --single-branch --branch main --no-tags \
+          https://github.com/facebook/watchman.git
+        cd watchman
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DWATCHMAN_BUILD_TESTS=ON \
+          -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3) \
+          -DGTEST_ROOT=$(brew --prefix googletest) \
+          -Dedencommon_DIR=/usr/local/lib/cmake/edencommon
+        cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+
+    - name: Create Package
+      run: |
+        cd watchman
+        mkdir -p package/watchman
+        cp build/watchman package/watchman/
+        cp build/watchmanctl package/watchman/
+        cp LICENSE package/watchman/
+        cd package
+        tar -czf watchman-macos.tar.gz watchman/
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: watchman-macos
+        path: watchman/package/watchman-macos.tar.gz
+        retention-days: 7
