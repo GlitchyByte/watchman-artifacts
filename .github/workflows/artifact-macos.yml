@@ -19,12 +19,20 @@ jobs:
         python -m pip install --upgrade pip
         pip install cython
 
-    - name: Clone and Setup Watchman
+    - name: Clone and Debug Dependencies
       run: |
         git clone --depth 1 --single-branch --branch main --no-tags \
           https://github.com/facebook/watchman.git
         cd watchman
         git submodule update --init --recursive --depth 1
+        echo "Submodules:"
+        git submodule status
+        echo "\nContent of watchman directory:"
+        ls -la
+        echo "\nSearching for edencommon:"
+        find . -type d -name "edencommon" -o -name "eden-common"
+        echo "\nSearching for relevant CMakeLists.txt:"
+        find . -name "CMakeLists.txt" -exec grep -l "edencommon" {} \;
 
     - name: Build
       run: |
