@@ -30,45 +30,37 @@ jobs:
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           build --src-dir="$PWD" --no-tests watchman
 
-        # Debug: Show where builds might be
-        echo "Looking for build directories and binaries:"
-        echo "In /tmp:"
-        find /tmp -type d -name "*watchman*" -o -name "*fbcode*" 2>/dev/null || true
-        echo "In /private/var/folders:"
-        find /private/var/folders -type d -name "*watchman*" -o -name "*fbcode*" 2>/dev/null || true
-        echo "In current directory:"
-        find . -type d -name "*watchman*" -o -name "*fbcode*" 2>/dev/null || true
-
-        echo "Looking for binaries:"
-        echo "In /tmp:"
-        find /tmp -type f -name "watchman" -o -name "watchmanctl" 2>/dev/null || true
-        echo "In /private/var/folders:"
-        find /private/var/folders -type f -name "watchman" -o -name "watchmanctl" 2>/dev/null || true
-        echo "In current directory:"
-        find . -type f -name "watchman" -o -name "watchmanctl" 2>/dev/null || true
-
     - name: Create Package
       run: |
         cd watchman
         mkdir -p package/watchman
 
-        # Look everywhere for the binaries
-        for location in "/tmp" "/private/var/folders" "$PWD"; do
-          echo "Searching in $location"
-          for binary in watchman watchmanctl; do
-            if BINARY_PATH=$(find "$location" -type f -name "$binary" 2>/dev/null); then
-              echo "Found $binary at: $BINARY_PATH"
-              cp "$BINARY_PATH" package/watchman/
-            fi
-          done
-        done
+        # Get the fbcode builder directory
+        FBCODE_DIR=$(find /private/var/folders -type d -name "fbcode_builder_getdeps-*" -print -quit)
+        echo "Found fbcode directory: $FBCODE_DIR"
 
-        # Package up what we found
+        # Copy from installed location
+        INSTALLED_DIR="$FBCODE_DIR/installed/watchman/bin"
+        if [ -d "$INSTALLED_DIR" ]; then
+          echo "Copying from installed directory: $INSTALLED_DIR"
+          cp "$INSTALLED_DIR/watchman" package/watchman/
+          cp "$INSTALLED_DIR/watchmanctl" package/watchman/
+        else
+          echo "Installed directory not found, trying build directory"
+          BUILD_BIN="$FBCODE_DIR/build/watchman/bin/watchman"
+          BUILD_CTL="$FBCODE_DIR/build/watchman/watchman/cli/release/watchmanctl"
+
+          [ -f "$BUILD_BIN" ] && cp "$BUILD_BIN" package/watchman/
+          [ -f "$BUILD_CTL" ] && cp "$BUILD_CTL" package/watchman/
+        fi
+
         cp LICENSE package/watchman/
+
+        echo "Final package contents:"
+        ls -l package/watchman/
+
         cd package
         tar -czf watchman-macos.tar.gz watchman/
-
-        # Show what we got
         echo "Archive contents:"
         tar tvf watchman-macos.tar.gz
 
