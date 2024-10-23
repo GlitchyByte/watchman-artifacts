@@ -55,53 +55,61 @@ jobs:
         mkdir -p package/watchman
 
         echo "Finding watchman binaries..."
-        echo "Looking for files named 'watchman' or 'watchmanctl':"
-        find . -type f \( -name watchman -o -name watchmanctl \) -exec ls -l {} \;
+        echo "Looking for files in build directory:"
+        find . -type f -name "watchman" -o -name "watchmanctl"
 
-        echo -e "\nChecking build directory structure:"
-        ls -R build
-
-        echo -e "\nChecking getdeps build info..."
-        BUILD_DIR=$(python3 build/fbcode_builder/getdeps.py show-build-dir watchman)
-        INSTALL_DIR=$(python3 build/fbcode_builder/getdeps.py show-install-dir watchman)
+        echo -e "\nGetting build info from getdeps..."
+        BUILD_DIR=$(python3 build/fbcode_builder/getdeps.py --allow-system-packages show-build-dir watchman)
+        INST_DIR=$(python3 build/fbcode_builder/getdeps.py --allow-system-packages show-inst-dir watchman)
 
         echo "Build directory: ${BUILD_DIR}"
-        echo "Install directory: ${INSTALL_DIR}"
+        echo "Install directory: ${INST_DIR}"
 
-        # Look in both build and install directories
-        for DIR in "${BUILD_DIR}" "${INSTALL_DIR}"; do
-          if [ -d "${DIR}" ]; then
-            echo -e "\nSearching in ${DIR}:"
-            find "${DIR}" -type f \( -name watchman -o -name watchmanctl \) -exec ls -l {} \;
+        # Search in common build locations
+        POSSIBLE_DIRS=(
+          "./build/watchman"
+          "./build/_build"
+          "./build/_install"
+          "${BUILD_DIR}"
+          "${INST_DIR}"
+        )
+
+        # Show contents of possible build directories
+        for DIR in "${POSSIBLE_DIRS[@]}"; do
+          if [ -d "$DIR" ]; then
+            echo -e "\nContents of $DIR:"
+            ls -R "$DIR"
           fi
         done
 
-        # Let's see what files are in bin directories
-        for DIR in "./build" "${BUILD_DIR}" "${INSTALL_DIR}"; do
-          if [ -d "${DIR}/bin" ]; then
-            echo -e "\nContents of ${DIR}/bin:"
-            ls -l "${DIR}/bin"
-          fi
-        done
-
-        if [ -d "${INSTALL_DIR}/bin" ] && [ -f "${INSTALL_DIR}/bin/watchman" ]; then
-          echo "Found watchman in ${INSTALL_DIR}/bin, copying files..."
-          cp "${INSTALL_DIR}/bin/watchman" package/watchman/ || {
-            echo "Error: Failed to copy watchman binary"
-            exit 1
-          }
-
-          cp "${INSTALL_DIR}/bin/watchmanctl" package/watchman/ || {
-            echo "Error: Failed to copy watchmanctl binary"
-            exit 1
-          }
+        # First try the install directory
+        if [ -n "${INST_DIR}" ] && [ -d "${INST_DIR}/bin" ]; then
+          echo "Trying install directory..."
+          cp "${INST_DIR}/bin/watchman" package/watchman/ && \
+          cp "${INST_DIR}/bin/watchmanctl" package/watchman/
+        # Then try the build directory
+        elif [ -n "${BUILD_DIR}" ] && [ -d "${BUILD_DIR}" ]; then
+          echo "Trying build directory..."
+          find "${BUILD_DIR}" -type f -name watchman -exec cp {} package/watchman/ \;
+          find "${BUILD_DIR}" -type f -name watchmanctl -exec cp {} package/watchman/ \;
+        # Finally try local build directory
+        elif [ -d "build" ]; then
+          echo "Trying local build directory..."
+          find build -type f -name watchman -exec cp {} package/watchman/ \;
+          find build -type f -name watchmanctl -exec cp {} package/watchman/ \;
         else
-          echo "Error: Binaries not found in expected location"
+          echo "Error: Could not find watchman binaries in any expected location"
           exit 1
         fi
 
         if [ ! -f LICENSE ]; then
           echo "Error: LICENSE file not found"
+          exit 1
+        fi
+
+        # Verify we found the binaries
+        if [ ! -f "package/watchman/watchman" ] || [ ! -f "package/watchman/watchmanctl" ]; then
+          echo "Error: Failed to copy one or both binaries"
           exit 1
         fi
 
