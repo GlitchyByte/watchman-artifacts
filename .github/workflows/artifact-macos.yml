@@ -25,34 +25,38 @@ jobs:
         export CC=clang
         export CXX=clang++
         export GETDEPS_PACKAGE_DIR="$GITHUB_WORKSPACE/watchman/build/fbcode_builder/manifests"
+        # Have getdeps tell us where it's working
+        python3 build/fbcode_builder/getdeps.py show-inst-dir
+
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           install-system-deps --recursive watchman
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           build --src-dir="$PWD" --no-tests watchman
+
+        # Show us what was built
+        echo "Build complete, finding build artifacts..."
+        WORKSPACE_DIR="$GITHUB_WORKSPACE/watchman"
+        echo "Contents of workspace:"
+        ls -R "$WORKSPACE_DIR"
 
     - name: Create Package
       run: |
         cd watchman
         mkdir -p package/watchman
 
-        # Get the fbcode builder directory
-        FBCODE_DIR=$(find /private/var/folders -type d -name "fbcode_builder_getdeps-*" -print -quit)
-        echo "Found fbcode directory: $FBCODE_DIR"
-
-        # Copy from installed location
-        INSTALLED_DIR="$FBCODE_DIR/installed/watchman/bin"
-        if [ -d "$INSTALLED_DIR" ]; then
-          echo "Copying from installed directory: $INSTALLED_DIR"
-          cp "$INSTALLED_DIR/watchman" package/watchman/
-          cp "$INSTALLED_DIR/watchmanctl" package/watchman/
-        else
-          echo "Installed directory not found, trying build directory"
-          BUILD_BIN="$FBCODE_DIR/build/watchman/bin/watchman"
-          BUILD_CTL="$FBCODE_DIR/build/watchman/watchman/cli/release/watchmanctl"
-
-          [ -f "$BUILD_BIN" ] && cp "$BUILD_BIN" package/watchman/
-          [ -f "$BUILD_CTL" ] && cp "$BUILD_CTL" package/watchman/
-        fi
+        # Look in workspace directory
+        WORKSPACE_DIR="$GITHUB_WORKSPACE/watchman"
+        for binary in watchman watchmanctl; do
+          if found=$(sudo find "$WORKSPACE_DIR" -type f -name "$binary" 2>/dev/null); then
+            echo "Found $binary at: $found"
+            while IFS= read -r path; do
+              if [ -x "$path" ]; then
+                echo "Copying executable $binary from: $path"
+                cp "$path" package/watchman/
+              fi
+            done <<< "$found"
+          fi
+        done
 
         cp LICENSE package/watchman/
 
