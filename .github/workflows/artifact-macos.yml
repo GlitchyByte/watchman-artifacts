@@ -10,8 +10,9 @@ jobs:
       DEPENDENCY_DIR: /usr/local/var/getdeps
       GETDEPS_BUILD_DIR: /usr/local/var/getdeps/build
       ACTIONS_RUNTIME_TOKEN: ${{ github.token }}
-      # Fix: Remove variable interpolation in environment variable definition
       ACTIONS_CACHE_URL: ${{ vars.ACTIONS_CACHE_URL || 'https://actions-cache.github.com/api/' }}
+      CFLAGS: "-w"
+      CXXFLAGS: "-w"
 
     steps:
     - name: Clone Watchman
@@ -38,33 +39,42 @@ jobs:
     - name: Build Watchman
       working-directory: watchman
       run: |
-        # Fix: Use explicit Python path and add error handling
         export CC=clang
         export CXX=clang++
         export GETDEPS_PACKAGE_DIR="${GITHUB_WORKSPACE}/watchman/build/fbcode_builder/manifests"
 
-        # Add error checking
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
-          install-system-deps --recursive watchman || exit 1
+          install-system-deps --recursive watchman 2>/dev/null || exit 1
 
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
-          build --src-dir="${PWD}" --no-tests watchman || exit 1
+          build --src-dir="${PWD}" --no-tests watchman 2>/dev/null || exit 1
 
     - name: Create Package
       run: |
         cd watchman || exit 1
         mkdir -p package/watchman
 
-        # Add error checking for required files
-        if ! find "${GETDEPS_BUILD_DIR}" -type f -name watchman -exec cp {} package/watchman/ \;; then
-          echo "Error: watchman binary not found"
+        # Debug: Show build directory contents
+        echo "Looking for build artifacts..."
+        find . -type f -name watchman -o -name watchmanctl
+
+        # Try to locate binaries in the actual build directory
+        BUILD_DIR="./build/_install/usr/local/bin"
+        if [ ! -d "$BUILD_DIR" ]; then
+          echo "Error: Build directory $BUILD_DIR not found"
           exit 1
         fi
 
-        if ! find "${GETDEPS_BUILD_DIR}" -type f -name watchmanctl -exec cp {} package/watchman/ \;; then
-          echo "Error: watchmanctl binary not found"
+        echo "Copying binaries from $BUILD_DIR"
+        cp "$BUILD_DIR/watchman" package/watchman/ || {
+          echo "Error: Failed to copy watchman binary"
           exit 1
-        fi
+        }
+
+        cp "$BUILD_DIR/watchmanctl" package/watchman/ || {
+          echo "Error: Failed to copy watchmanctl binary"
+          exit 1
+        }
 
         if [ ! -f LICENSE ]; then
           echo "Error: LICENSE file not found"
