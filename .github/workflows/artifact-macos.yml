@@ -54,16 +54,38 @@ jobs:
         cd watchman || exit 1
         mkdir -p package/watchman
 
-        echo "Finding actual binary files (excluding manifest files)..."
-        echo "Looking for executables named 'watchman' or 'watchmanctl':"
-        find . -type f -executable \( -name watchman -o -name watchmanctl \) -ls
+        echo "Finding watchman binaries..."
+        echo "Looking for files named 'watchman' or 'watchmanctl':"
+        find . -type f \( -name watchman -o -name watchmanctl \) -exec ls -l {} \;
+
+        echo -e "\nChecking build directory structure:"
+        ls -R build
 
         echo -e "\nChecking getdeps build info..."
+        BUILD_DIR=$(python3 build/fbcode_builder/getdeps.py show-build-dir watchman)
         INSTALL_DIR=$(python3 build/fbcode_builder/getdeps.py show-install-dir watchman)
+
+        echo "Build directory: ${BUILD_DIR}"
         echo "Install directory: ${INSTALL_DIR}"
 
-        if [ -d "${INSTALL_DIR}" ]; then
-          echo "Found install directory, copying binaries..."
+        # Look in both build and install directories
+        for DIR in "${BUILD_DIR}" "${INSTALL_DIR}"; do
+          if [ -d "${DIR}" ]; then
+            echo -e "\nSearching in ${DIR}:"
+            find "${DIR}" -type f \( -name watchman -o -name watchmanctl \) -exec ls -l {} \;
+          fi
+        done
+
+        # Let's see what files are in bin directories
+        for DIR in "./build" "${BUILD_DIR}" "${INSTALL_DIR}"; do
+          if [ -d "${DIR}/bin" ]; then
+            echo -e "\nContents of ${DIR}/bin:"
+            ls -l "${DIR}/bin"
+          fi
+        done
+
+        if [ -d "${INSTALL_DIR}/bin" ] && [ -f "${INSTALL_DIR}/bin/watchman" ]; then
+          echo "Found watchman in ${INSTALL_DIR}/bin, copying files..."
           cp "${INSTALL_DIR}/bin/watchman" package/watchman/ || {
             echo "Error: Failed to copy watchman binary"
             exit 1
@@ -74,7 +96,7 @@ jobs:
             exit 1
           }
         else
-          echo "Error: Install directory not found at ${INSTALL_DIR}"
+          echo "Error: Binaries not found in expected location"
           exit 1
         fi
 
