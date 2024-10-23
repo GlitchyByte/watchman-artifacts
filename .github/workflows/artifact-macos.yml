@@ -54,27 +54,29 @@ jobs:
         cd watchman || exit 1
         mkdir -p package/watchman
 
-        # Debug: Show build directory contents
-        echo "Looking for build artifacts..."
-        find . -type f -name watchman -o -name watchmanctl
+        echo "Finding actual binary files (excluding manifest files)..."
+        echo "Looking for executables named 'watchman' or 'watchmanctl':"
+        find . -type f -executable \( -name watchman -o -name watchmanctl \) -ls
 
-        # Try to locate binaries in the actual build directory
-        BUILD_DIR="./build/_install/usr/local/bin"
-        if [ ! -d "$BUILD_DIR" ]; then
-          echo "Error: Build directory $BUILD_DIR not found"
+        echo -e "\nChecking getdeps build info..."
+        INSTALL_DIR=$(python3 build/fbcode_builder/getdeps.py show-install-dir watchman)
+        echo "Install directory: ${INSTALL_DIR}"
+
+        if [ -d "${INSTALL_DIR}" ]; then
+          echo "Found install directory, copying binaries..."
+          cp "${INSTALL_DIR}/bin/watchman" package/watchman/ || {
+            echo "Error: Failed to copy watchman binary"
+            exit 1
+          }
+
+          cp "${INSTALL_DIR}/bin/watchmanctl" package/watchman/ || {
+            echo "Error: Failed to copy watchmanctl binary"
+            exit 1
+          }
+        else
+          echo "Error: Install directory not found at ${INSTALL_DIR}"
           exit 1
         fi
-
-        echo "Copying binaries from $BUILD_DIR"
-        cp "$BUILD_DIR/watchman" package/watchman/ || {
-          echo "Error: Failed to copy watchman binary"
-          exit 1
-        }
-
-        cp "$BUILD_DIR/watchmanctl" package/watchman/ || {
-          echo "Error: Failed to copy watchmanctl binary"
-          exit 1
-        }
 
         if [ ! -f LICENSE ]; then
           echo "Error: LICENSE file not found"
