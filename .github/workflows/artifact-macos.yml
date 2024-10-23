@@ -7,8 +7,6 @@ jobs:
   build:
     runs-on: macos-latest
     env:
-      DEPENDENCY_DIR: /usr/local/var/getdeps
-      GETDEPS_BUILD_DIR: /usr/local/var/getdeps/build
       ACTIONS_RUNTIME_TOKEN: ${{ github.token }}
       ACTIONS_CACHE_URL: ${{ vars.ACTIONS_CACHE_URL || 'https://actions-cache.github.com/api/' }}
       CFLAGS: "-w"
@@ -27,14 +25,6 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.x'
-
-    - name: getdeps cache
-      uses: actions/cache@v3
-      with:
-        path: /usr/local/var/getdeps
-        key: macos-getdeps-v1-${{ github.sha }}
-        restore-keys: |
-          macos-getdeps-v1-
 
     - name: Build Watchman
       working-directory: watchman
