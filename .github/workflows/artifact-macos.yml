@@ -9,6 +9,7 @@ jobs:
     env:
       ACTIONS_RUNTIME_TOKEN: ${{ github.token }}
       ACTIONS_CACHE_URL: ${ACTIONS_CACHE_URL:-"https://actions-cache.github.com/api/"}
+      TMPDIR: /tmp/watchman-build
 
     steps:
     - name: Clone Watchman
@@ -22,32 +23,29 @@ jobs:
     - name: Build Watchman
       working-directory: watchman
       run: |
+        # Create and use our own temp directory to make it easier to find builds
+        mkdir -p $TMPDIR
         export CC=clang
         export CXX=clang++
         export GETDEPS_PACKAGE_DIR="$GITHUB_WORKSPACE/watchman/build/fbcode_builder/manifests"
-        # Have getdeps tell us where it's working
-        python3 build/fbcode_builder/getdeps.py show-inst-dir
 
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           install-system-deps --recursive watchman
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           build --src-dir="$PWD" --no-tests watchman
 
-        # Show us what was built
-        echo "Build complete, finding build artifacts..."
-        WORKSPACE_DIR="$GITHUB_WORKSPACE/watchman"
-        echo "Contents of workspace:"
-        ls -R "$WORKSPACE_DIR"
+        echo "Build complete, contents of TMPDIR:"
+        ls -R "$TMPDIR"
 
     - name: Create Package
       run: |
         cd watchman
         mkdir -p package/watchman
 
-        # Look in workspace directory
-        WORKSPACE_DIR="$GITHUB_WORKSPACE/watchman"
+        # Look in our controlled temp directory
         for binary in watchman watchmanctl; do
-          if found=$(sudo find "$WORKSPACE_DIR" -type f -name "$binary" 2>/dev/null); then
+          echo "Looking for $binary in $TMPDIR"
+          if found=$(find "$TMPDIR" -type f -name "$binary" 2>/dev/null); then
             echo "Found $binary at: $found"
             while IFS= read -r path; do
               if [ -x "$path" ]; then
