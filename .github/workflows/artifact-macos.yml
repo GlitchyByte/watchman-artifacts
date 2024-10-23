@@ -54,62 +54,23 @@ jobs:
         cd watchman || exit 1
         mkdir -p package/watchman
 
-        echo "Finding watchman binaries..."
-        echo "Looking for files in build directory:"
-        find . -type f -name "watchman" -o -name "watchmanctl"
-
-        echo -e "\nGetting build info from getdeps..."
-        BUILD_DIR=$(python3 build/fbcode_builder/getdeps.py --allow-system-packages show-build-dir watchman)
+        # Get the install directory from getdeps
         INST_DIR=$(python3 build/fbcode_builder/getdeps.py --allow-system-packages show-inst-dir watchman)
-
-        echo "Build directory: ${BUILD_DIR}"
         echo "Install directory: ${INST_DIR}"
 
-        # Search in common build locations
-        POSSIBLE_DIRS=(
-          "./build/watchman"
-          "./build/_build"
-          "./build/_install"
-          "${BUILD_DIR}"
-          "${INST_DIR}"
-        )
-
-        # Show contents of possible build directories
-        for DIR in "${POSSIBLE_DIRS[@]}"; do
-          if [ -d "$DIR" ]; then
-            echo -e "\nContents of $DIR:"
-            ls -R "$DIR"
-          fi
-        done
-
-        # First try the install directory
-        if [ -n "${INST_DIR}" ] && [ -d "${INST_DIR}/bin" ]; then
-          echo "Trying install directory..."
-          cp "${INST_DIR}/bin/watchman" package/watchman/ && \
-          cp "${INST_DIR}/bin/watchmanctl" package/watchman/
-        # Then try the build directory
-        elif [ -n "${BUILD_DIR}" ] && [ -d "${BUILD_DIR}" ]; then
-          echo "Trying build directory..."
-          find "${BUILD_DIR}" -type f -name watchman -exec cp {} package/watchman/ \;
-          find "${BUILD_DIR}" -type f -name watchmanctl -exec cp {} package/watchman/ \;
-        # Finally try local build directory
-        elif [ -d "build" ]; then
-          echo "Trying local build directory..."
-          find build -type f -name watchman -exec cp {} package/watchman/ \;
-          find build -type f -name watchmanctl -exec cp {} package/watchman/ \;
-        else
-          echo "Error: Could not find watchman binaries in any expected location"
+        if [ ! -f "${INST_DIR}/bin/watchman" ] || [ ! -f "${INST_DIR}/bin/watchmanctl" ]; then
+          echo "Error: Binaries not found in ${INST_DIR}/bin"
           exit 1
         fi
+
+        echo "Copying binaries from ${INST_DIR}/bin"
+        cp "${INST_DIR}/bin/watchman" "${INST_DIR}/bin/watchmanctl" package/watchman/ || {
+          echo "Error: Failed to copy binaries"
+          exit 1
+        }
 
         if [ ! -f LICENSE ]; then
           echo "Error: LICENSE file not found"
-          exit 1
-        fi
-
-        # Verify we found the binaries
-        if [ ! -f "package/watchman/watchman" ] || [ ! -f "package/watchman/watchmanctl" ]; then
-          echo "Error: Failed to copy one or both binaries"
           exit 1
         fi
 
