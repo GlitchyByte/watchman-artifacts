@@ -1,18 +1,65 @@
-name: Build Watchman macOS
+name: build-watchman
+run-name: Build Watchman macOS
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: macos-latest
+  create_release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.release_version.outputs.release_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get release version
+        id: release_version
+        run: |
+          release_version=$(curl -s https://api.github.com/repos/facebook/watchman/releases/latest | jq -r .tag_name)
+          echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Delete version if it exists
+        run: gh release delete ${{ steps.release_version.outputs.release_version }} --cleanup-tag -y || true
+
+      - name: Delay between delete and create
+        run: sleep 2
+
+      - name: Create release
+        run: gh release create ${{ steps.release_version.outputs.release_version }} -t "${{ steps.release_version.outputs.release_version }}" -F release.md
+
+      - name: Keep 3 releases
+        run: |
+          releases=$(gh release list)
+          releaseCount=$(echo "$releases" | wc -l)
+          keep=3
+          if [ "$releaseCount" -gt "$keep" ]; then
+            extra=$((releaseCount - keep))
+            tags=$(echo "$releases" | tail -n $extra | cut -f3)
+            for tag in $tags; do
+              gh release delete ${tag} --cleanup-tag -y
+            done
+          fi
+
+  release_artifacts:
+    needs: create_release
+    runs-on: ${{ matrix.os }}
     env:
-      ACTIONS_RUNTIME_TOKEN: ${{ github.token }}
-      ACTIONS_CACHE_URL: ${{ vars.ACTIONS_CACHE_URL || 'https://actions-cache.github.com/api/' }}
+      RELEASE_VERSION: ${{ needs.create_release.outputs.release_version }}
       CFLAGS: "-w"
       CXXFLAGS: "-w"
 
+    strategy:
+      matrix:
+        os: [ macos-14-large, macos-14 ]
+
     steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
     - name: Clone Watchman
       uses: actions/checkout@v4
       with:
@@ -20,11 +67,7 @@ jobs:
         path: watchman
         fetch-depth: 1
         submodules: recursive
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
+        ref: ${{ env.RELEASE_VERSION }}
 
     - name: Build Watchman
       working-directory: watchman
@@ -39,12 +82,11 @@ jobs:
         python3 build/fbcode_builder/getdeps.py --allow-system-packages \
           build --src-dir="${PWD}" --no-tests watchman 2>/dev/null || exit 1
 
-    - name: Create Package
+    - name: Create package
       run: |
         cd watchman || exit 1
         mkdir -p package/watchman
 
-        # Get the install directory from getdeps
         INST_DIR=$(python3 build/fbcode_builder/getdeps.py --allow-system-packages show-inst-dir watchman)
         echo "Install directory: ${INST_DIR}"
 
@@ -52,25 +94,28 @@ jobs:
           echo "Error: Binaries not found in ${INST_DIR}/bin"
           exit 1
         fi
-
-        echo "Copying binaries from ${INST_DIR}/bin"
-        cp "${INST_DIR}/bin/watchman" "${INST_DIR}/bin/watchmanctl" package/watchman/ || {
-          echo "Error: Failed to copy binaries"
-          exit 1
-        }
-
         if [ ! -f LICENSE ]; then
           echo "Error: LICENSE file not found"
           exit 1
-        fi
+        }
 
-        cp LICENSE package/watchman/
-        cd package || exit 1
-        tar -czf watchman-macos.tar.gz watchman/
+        echo "Copying binaries from ${INST_DIR}/bin"
+        cp LICENSE "${INST_DIR}/bin/watchman" "${INST_DIR}/bin/watchmanctl" package/watchman/
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: watchman-macos
-        path: watchman/package/watchman-macos.tar.gz
-        retention-days: 7
+        # tar -czf watchman-macos.tar.gz -C package watchman/
+
+    - name: Zip macOS x64
+      if: matrix.os == 'macos-14-large'
+      env:
+        ZIP_NAME: watchman-macos-x64.tar.gz
+      run: |
+        tar -czf ${{ env.ZIP_NAME }} -C watchman/package watchman/
+        gh release upload ${{ env.RELEASE_VERSION }} ${{ env.ZIP_NAME }} --clobber
+
+    - name: Zip macOS aarch64
+      if: matrix.os == 'macos-14'
+      env:
+        ZIP_NAME: watchman-macos-aarch64.tar.gz
+      run: |
+        tar -czf ${{ env.ZIP_NAME }} -C watchman/package watchman/
+        gh release upload ${{ env.RELEASE_VERSION }} ${{ env.ZIP_NAME }} --clobber
