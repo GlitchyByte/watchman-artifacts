@@ -4,6 +4,9 @@ run-name: Build Watchman macOS
 on:
   workflow_dispatch:
 
+env:
+  GH_TOKEN: ${{ github.token }}
+
 jobs:
   create_release:
     runs-on: ubuntu-latest
