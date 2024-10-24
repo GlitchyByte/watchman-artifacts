@@ -55,7 +55,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ macos-14-large, macos-14 ]
+        os: [ macos-13, macos-14 ]
 
     steps:
     - name: Set up Python
@@ -108,7 +108,7 @@ jobs:
         # tar -czf watchman-macos.tar.gz -C package watchman/
 
     - name: Zip macOS x64
-      if: matrix.os == 'macos-14-large'
+      if: matrix.os == 'macos-13'
       env:
         ZIP_NAME: watchman-macos-x64.tar.gz
       run: |
